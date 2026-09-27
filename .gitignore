@@ -1,0 +1,21 @@
+# 构建产物
+backend/target/
+frontend/node_modules/
+frontend/dist/
+
+# 测试 / 压测报告（运行时生成）
+reports/
+perf/reports/
+tests/playwright-report/
+tests/test-results/
+tests/allure-results/
+tests/allure-report/
+
+# 本地环境
+.env
+*.local
+
+# 系统
+.DS_Store
+.idea/
+*.iml

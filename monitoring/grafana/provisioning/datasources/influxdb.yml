@@ -1,0 +1,20 @@
+apiVersion: 1
+
+datasources:
+  - name: JMeter-InfluxDB
+    # 固定 uid：看板 JSON 里用 uid 引用数据源，不写死的话 Grafana 会随机生成，
+    # 看板就会变成 "Datasource JMeter-InfluxDB was not found"。
+    uid: JMeter-InfluxDB
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: true
+    jsonData:
+      version: Flux
+      organization: shop
+      defaultBucket: jmeter
+      tlsSkipVerify: true
+      httpMode: POST
+    secureJsonData:
+      token: shop-demo-token-1234567890
+    editable: true

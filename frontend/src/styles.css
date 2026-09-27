@@ -1,0 +1,47 @@
+:root {
+  --el-color-primary: #d9381e;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", Arial, sans-serif;
+  background: #f5f6f8;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  padding: 0 24px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+}
+
+.app-logo {
+  font-size: 18px;
+  font-weight: 700;
+  color: #d9381e;
+  cursor: pointer;
+}
+
+.app-body {
+  max-width: 1200px;
+  margin: 16px auto;
+  padding: 0 16px;
+}
+
+.product-card {
+  cursor: pointer;
+}
+
+.price {
+  color: #d9381e;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.muted {
+  color: #909399;
+  font-size: 12px;
+}

@@ -1,0 +1,173 @@
+name: shop-demo
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: shop-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: shop_demo
+      MYSQL_USER: shop
+      MYSQL_PASSWORD: shop123456
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --slow_query_log=1
+      --long_query_time=0.5
+      --max_connections=500
+      --innodb_buffer_pool_size=512M
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - shop-net
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: shop-redis
+    command: ["redis-server", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    networks:
+      - shop-net
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: shop-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    networks:
+      - shop-net
+
+  backend:
+    build: ./backend
+    image: shop-demo-backend:latest
+    container_name: shop-backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # JVM 时区必须和 MySQL（TZ=Asia/Shanghai）一致，否则写入的时间戳是 UTC，
+      # SQL 里 NOW() / 超时关单的判断会整体偏 8 小时
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_USER: shop
+      DB_PASSWORD: shop123456
+      REDIS_HOST: redis
+      MQ_HOST: rabbitmq
+      # 压测时可按需调整：线程池、连接池、支付延迟、关单超时
+      TOMCAT_MAX_THREADS: ${TOMCAT_MAX_THREADS:-200}
+      DB_POOL_MAX: ${DB_POOL_MAX:-20}
+      PAY_MIN_DELAY_MS: ${PAY_MIN_DELAY_MS:-300}
+      PAY_MAX_DELAY_MS: ${PAY_MAX_DELAY_MS:-2000}
+      PAY_FAILURE_RATE: ${PAY_FAILURE_RATE:-0.05}
+      PAY_TIMEOUT_RATE: ${PAY_TIMEOUT_RATE:-0.03}
+      ORDER_PAY_TIMEOUT_MS: ${ORDER_PAY_TIMEOUT_MS:-600000}
+      ORDER_SHIP_DELAY_MS: ${ORDER_SHIP_DELAY_MS:-3000}
+      JAVA_OPTS: "-XX:+UseG1GC -XX:MaxRAMPercentage=70 -Duser.timezone=Asia/Shanghai"
+    ports:
+      - "8080:8080"
+    networks:
+      - shop-net
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - VITE_API_TARGET=http://backend:8080
+    image: shop-demo-frontend:latest
+    container_name: shop-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+    networks:
+      - shop-net
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: shop-influxdb
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: admin123456
+      DOCKER_INFLUXDB_INIT_ORG: shop
+      DOCKER_INFLUXDB_INIT_BUCKET: jmeter
+      DOCKER_INFLUXDB_INIT_RETENTION: 7d
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: shop-demo-token-1234567890
+    ports:
+      - "8086:8086"
+    volumes:
+      - influx-data:/var/lib/influxdb2
+    networks:
+      - shop-net
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: shop-grafana
+    depends_on:
+      - influxdb
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123456
+      GF_INSTALL_PLUGINS: ""
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - shop-net
+
+  jenkins:
+    build: ./jenkins
+    image: shop-demo-jenkins:latest
+    container_name: shop-jenkins
+    user: root
+    environment:
+      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false"
+    ports:
+      - "8082:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins-data:/var/jenkins_home
+      # 通过 docker socket 让流水线可以编排测试容器（本地测试环境专用）
+      # 注意：Docker Desktop 未安装特权助手时 /var/run/docker.sock 不存在，
+      #      此时用用户态 socket $HOME/.docker/run/docker.sock 替代
+      - ${HOME}/.docker/run/docker.sock:/var/run/docker.sock
+    networks:
+      - shop-net
+
+volumes:
+  mysql-data:
+  influx-data:
+  grafana-data:
+  jenkins-data:
+
+networks:
+  shop-net:
+    driver: bridge

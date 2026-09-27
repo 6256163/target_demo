@@ -1,0 +1,10 @@
+workflow-aggregator
+git
+pipeline-stage-view
+blueocean
+credentials-binding
+timestamper
+htmlpublisher
+allure-jenkins-plugin
+warnings-ng
+build-name-setter

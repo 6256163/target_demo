@@ -1,0 +1,57 @@
+# 测试执行环境：测试代码在构建镜像时打进去，跑完用 docker cp 把报告取回。
+# 这样避免了「Jenkins 容器内路径 != 宿主 docker daemon 路径」的经典 bind mount 踩坑。
+name: shop-demo-test
+
+services:
+  playwright:
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    image: shop-demo-playwright:latest
+    container_name: shop-playwright
+    working_dir: /work/tests
+    environment:
+      BASE_URL: ${BASE_URL:-http://frontend}
+      API_BASE_URL: ${API_BASE_URL:-http://backend:8080}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASS: ${ADMIN_PASS:-admin123}
+      USER_NAME: ${USER_NAME:-tester}
+      USER_PASS: ${USER_PASS:-123456}
+      REPORT_VERSION: ${REPORT_VERSION:-local}
+      CI: "true"
+    command: ["npx", "playwright", "test"]
+    volumes:
+      - reports:/work/reports
+    networks:
+      - shop-net
+
+  jmeter:
+    build: ./perf
+    image: shop-demo-jmeter:latest
+    container_name: shop-jmeter
+    working_dir: /jmeter
+    environment:
+      TARGET_HOST: ${TARGET_HOST:-backend}
+      TARGET_PORT: ${TARGET_PORT:-8080}
+      THREADS: ${THREADS:-50}
+      RAMP_UP: ${RAMP_UP:-30}
+      DURATION: ${DURATION:-300}
+      INFLUX_HOST: ${INFLUX_HOST:-influxdb}
+      INFLUX_TOKEN: ${INFLUX_TOKEN:-shop-demo-token-1234567890}
+      INFLUX_BUCKET: ${INFLUX_BUCKET:-jmeter}
+      INFLUX_ORG: ${INFLUX_ORG:-shop}
+      REPORT_VERSION: ${REPORT_VERSION:-local}
+    command: ["sh", "-c", "echo 'jmeter runner ready'; sleep 1"]
+    volumes:
+      - reports:/reports
+    networks:
+      - shop-net
+
+volumes:
+  reports:
+    name: shop-demo-reports
+
+networks:
+  shop-net:
+    external: true
+    name: shop-demo_shop-net

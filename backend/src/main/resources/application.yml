@@ -1,0 +1,96 @@
+server:
+  port: 8080
+  tomcat:
+    threads:
+      # 压测时可調：默认 200 是 Spring Boot 默认值，刻意保留以便观察线程瓶颈
+      max: ${TOMCAT_MAX_THREADS:200}
+      min-spare: ${TOMCAT_MIN_SPARE:20}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:100}
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:8192}
+
+spring:
+  application:
+    name: shop-demo
+  datasource:
+    url: jdbc:mysql://${DB_HOST:mysql}:${DB_PORT:3306}/${DB_NAME:shop_demo}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    username: ${DB_USER:shop}
+    password: ${DB_PASSWORD:shop123456}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+      connection-timeout: ${DB_CONN_TIMEOUT:30000}
+      leak-detection-threshold: ${DB_LEAK_THRESHOLD:10000}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+          # 必须与 JVM/MySQL 容器时区一致，否则 SQL 里 NOW() 算出来的订单年龄会差 8 小时
+          time_zone: ${DB_TZ:Asia/Shanghai}
+        # 压测时打开 slow SQL 观察（>500ms）
+        # session.events.log.LOG_QUERIES_SLOWER_THAN_MS: 500
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      database: 0
+      timeout: 5s
+  rabbitmq:
+    host: ${MQ_HOST:rabbitmq}
+    port: ${MQ_PORT:5672}
+    username: ${MQ_USER:guest}
+    password: ${MQ_PASSWORD:guest}
+    listener:
+      simple:
+        concurrency: ${MQ_CONSUMER_MIN:2}
+        max-concurrency: ${MQ_CONSUMER_MAX:8}
+        prefetch: ${MQ_PREFETCH:50}
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,httpexchanges
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  health:
+    rabbit:
+      enabled: true
+    redis:
+      enabled: true
+
+shop:
+  jwt:
+    secret: ${JWT_SECRET:shop-demo-testing-secret-key-please-change-in-production-0123456789}
+    access-token-ttl-ms: ${JWT_ACCESS_TTL:3600000}
+    refresh-token-ttl-ms: ${JWT_REFRESH_TTL:86400000}
+  order:
+    pay-timeout-ms: ${ORDER_PAY_TIMEOUT_MS:1800000}
+    auto-ship-delay-ms: ${ORDER_SHIP_DELAY_MS:3000}
+  cache:
+    product-ttl-seconds: ${PRODUCT_CACHE_TTL:300}
+    product-null-ttl-seconds: 60
+  payment:
+    default-failure-rate: ${PAY_FAILURE_RATE:0.05}
+    default-timeout-rate: ${PAY_TIMEOUT_RATE:0.03}
+    default-min-delay-ms: ${PAY_MIN_DELAY_MS:300}
+    default-max-delay-ms: ${PAY_MAX_DELAY_MS:2000}
+
+logging:
+  level:
+    root: INFO
+    com.demo.shop: ${LOG_LEVEL_APP:INFO}
+    org.hibernate.SQL: DEBUG
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

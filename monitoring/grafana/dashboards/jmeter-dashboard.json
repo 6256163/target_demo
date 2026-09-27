@@ -1,0 +1,171 @@
+{
+  "uid": "shop-jmeter",
+  "title": "Shop Demo · JMeter 实时压测看板",
+  "tags": [
+    "jmeter",
+    "shop-demo"
+  ],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "活跃线程数（并发用户）",
+      "id": 1,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "JMeter-InfluxDB"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"jmeter\")\n  |> filter(fn: (r) => r[\"application\"] =~ /^${application}$/)\n  |> filter(fn: (r) => r[\"transaction\"] =~ /^${transaction}$/)\n  |> filter(fn: (r) => r[\"_field\"] == \"startedThreads\" or r[\"_field\"] == \"endedThreads\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"threads\")"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "TPS（每秒事务数）",
+      "id": 2,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "JMeter-InfluxDB"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"jmeter\")\n  |> filter(fn: (r) => r[\"application\"] =~ /^${application}$/)\n  |> filter(fn: (r) => r[\"transaction\"] =~ /^${transaction}$/)\n  |> filter(fn: (r) => r[\"_field\"] == \"count\")\n  |> aggregateWindow(every: 1s, fn: sum, createEmpty: false)\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"tps\")"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "响应时间 P95（ms）",
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "JMeter-InfluxDB"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"jmeter\")\n  |> filter(fn: (r) => r[\"application\"] =~ /^${application}$/)\n  |> filter(fn: (r) => r[\"transaction\"] =~ /^${transaction}$/)\n  |> filter(fn: (r) => r[\"_field\"] == \"pct95.0\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"p95\")"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "平均响应时间（ms）",
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "JMeter-InfluxDB"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"jmeter\")\n  |> filter(fn: (r) => r[\"application\"] =~ /^${application}$/)\n  |> filter(fn: (r) => r[\"transaction\"] =~ /^${transaction}$/)\n  |> filter(fn: (r) => r[\"_field\"] == \"avg\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"avg\")"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "错误数（失败事务）",
+      "id": 5,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "JMeter-InfluxDB"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"jmeter\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"jmeter\")\n  |> filter(fn: (r) => r[\"application\"] =~ /^${application}$/)\n  |> filter(fn: (r) => r[\"transaction\"] =~ /^${transaction}$/)\n  |> filter(fn: (r) => r[\"_field\"] == \"countError\")\n  |> aggregateWindow(every: v.windowPeriod, fn: sum, createEmpty: false)\n  |> yield(name: \"errors\")"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 3,
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "application",
+        "label": "应用",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "JMeter-InfluxDB"
+        },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"jmeter\", tag: \"application\")",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "sort": 1,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": "$__all"
+        },
+        "options": []
+      },
+      {
+        "type": "query",
+        "name": "transaction",
+        "label": "事务",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "JMeter-InfluxDB"
+        },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"jmeter\", tag: \"transaction\")",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "sort": 1,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": "$__all"
+        },
+        "options": []
+      }
+    ]
+  }
+}
