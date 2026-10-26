@@ -10,7 +10,7 @@ server:
 
 spring:
   application:
-    name: shop-demo
+    name: target_demo
   datasource:
     url: jdbc:mysql://${DB_HOST:mysql}:${DB_PORT:3306}/${DB_NAME:shop_demo}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
     username: ${DB_USER:shop}
@@ -71,7 +71,7 @@ management:
 
 shop:
   jwt:
-    secret: ${JWT_SECRET:shop-demo-testing-secret-key-please-change-in-production-0123456789}
+    secret: ${JWT_SECRET:target_demo-testing-secret-key-please-change-in-production-0123456789}
     access-token-ttl-ms: ${JWT_ACCESS_TTL:3600000}
     refresh-token-ttl-ms: ${JWT_REFRESH_TTL:86400000}
   order:

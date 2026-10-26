@@ -1,8 +1,8 @@
 -- ============================================================
--- shop-demo 压测后数据一致性校验
+-- target_demo 压测后数据一致性校验
 --
 -- 压力下正确性比指标更重要。每轮压力测试结束后执行：
---   docker exec -i shop-mysql mysql -ushop -pshop123456 shop_demo \
+--   docker exec -i target-mysql mysql -ushop -pshop123456 shop_demo \
 --       --default-character-set=utf8mb4 < perf/data/consistency-check.sql
 --
 -- 判定标准：下面 6 项里 1-5 必须全部「PASS」。

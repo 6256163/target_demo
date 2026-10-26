@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# shop-demo 性能测试执行入口
+# target_demo 性能测试执行入口
 #
 # 用法：
 #   ./perf/run-perf.sh --scenario mixed --threads 100 --duration 600
@@ -23,8 +23,8 @@ THREADS=100
 RAMP_UP=60
 DURATION=600
 VERSION="$(date +%Y%m%d-%H%M%S)"
-IMAGE="shop-demo-jmeter:latest"
-NETWORK="shop-demo_shop-net"
+IMAGE="target_demo-jmeter:latest"
+NETWORK="target_demo_shop-net"
 TARGET_HOST="backend"
 TARGET_PORT="8080"
 INFLUX_HOST="influxdb"

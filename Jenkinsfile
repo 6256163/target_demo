@@ -8,6 +8,7 @@ pipeline {
         string(name: 'THREADS', defaultValue: '50', description: '并发线程数')
         string(name: 'DURATION', defaultValue: '300', description: '压测时长（秒）')
         booleanParam(name: 'CLEANUP_AFTER', defaultValue: false, description: '结束后销毁环境')
+        string(name: 'BASE_URL', defaultValue: 'http://localhost', description: '被测服务基础地址（容器内运行 Jenkins 时填 http://host.docker.internal）')
     }
 
     options {
@@ -22,6 +23,7 @@ pipeline {
                     env.GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     env.GIT_BRANCH_NAME = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
                     env.VERSION = "${env.GIT_BRANCH_NAME}-${env.GIT_COMMIT_SHORT}-b${env.BUILD_NUMBER}"
+                    env.BASE_URL = params.BASE_URL
                     currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.VERSION}"
                 }
                 echo "本次合并版本：${env.VERSION}"
@@ -45,7 +47,7 @@ pipeline {
                 sh '''
                     for i in $(seq 1 60); do
                       if curl -fsS http://backend:8080/actuator/health >/dev/null 2>&1 || \
-                         curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+                         curl -fsS "$BASE_URL:8080/actuator/health" >/dev/null 2>&1; then
                         echo "backend is healthy"; exit 0
                       fi
                       sleep 5
@@ -58,8 +60,8 @@ pipeline {
         stage('冒烟检查') {
             steps {
                 sh '''
-                    curl -fsS http://localhost:8080/api/products?page=0&size=1 | head -c 300
-                    curl -fsS -o /dev/null -w "frontend:%{http_code}\\n" http://localhost:8081/
+                    curl -fsS "$BASE_URL:8080/api/products?page=0&size=1" | head -c 300
+                    curl -fsS -o /dev/null -w "frontend:%{http_code}\\n" "$BASE_URL:8081/"
                 '''
             }
         }
@@ -90,7 +92,7 @@ pipeline {
             steps {
                 sh "docker compose -f docker-compose.test.yml run --rm -e REPORT_VERSION=${env.VERSION} --entrypoint '' playwright bash -lc 'npx allure generate ../reports/${env.VERSION}/allure-results --clean -o ../reports/${env.VERSION}/allure-report || true'"
                 // 从命名卷中取出报告（避免容器内外路径不一致的问题）
-                sh "mkdir -p ${WORKSPACE}/reports && docker run --rm -v shop-demo-reports:/r alpine tar -C /r -cf - . | tar -C ${WORKSPACE}/reports -xf -"
+                sh "mkdir -p ${WORKSPACE}/reports && docker run --rm -v target_demo-reports:/r alpine tar -C /r -cf - . | tar -C ${WORKSPACE}/reports -xf -"
             }
         }
 
@@ -98,7 +100,7 @@ pipeline {
             when { expression { params.RUN_PERF_TEST } }
             steps {
                 sh "docker compose -f docker-compose.test.yml run --rm -e REPORT_VERSION=${env.VERSION} -e THREADS=${params.THREADS} -e DURATION=${params.DURATION} --entrypoint '' jmeter bash /jmeter/run-perf.sh ${params.PERF_SCENARIO}"
-                sh "mkdir -p ${WORKSPACE}/reports && docker run --rm -v shop-demo-reports:/r alpine tar -C /r -cf - . | tar -C ${WORKSPACE}/reports -xf -"
+                sh "mkdir -p ${WORKSPACE}/reports && docker run --rm -v target_demo-reports:/r alpine tar -C /r -cf - . | tar -C ${WORKSPACE}/reports -xf -"
             }
         }
 

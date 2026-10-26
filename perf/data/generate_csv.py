@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-shop-demo JMeter 参数化数据生成器。
+target_demo JMeter 参数化数据生成器。
 
 设计要点（决定了压测结果是否可信）：
 1. 固定区间 + 加权抽样，不是全范围随机。商品 id 从「有界池」里按 热:温:冷 ≈ 10:3:1

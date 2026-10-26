@@ -1,9 +1,9 @@
-name: shop-demo
+name: target_demo
 
 services:
   mysql:
     image: mysql:8.0
-    container_name: shop-mysql
+    container_name: target-mysql
     environment:
       MYSQL_ROOT_PASSWORD: root123456
       MYSQL_DATABASE: shop_demo
@@ -33,7 +33,7 @@ services:
 
   redis:
     image: redis:7.2-alpine
-    container_name: shop-redis
+    container_name: target-redis
     command: ["redis-server", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
     ports:
       - "6379:6379"
@@ -42,7 +42,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: shop-rabbitmq
+    container_name: target-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -59,8 +59,8 @@ services:
 
   backend:
     build: ./backend
-    image: shop-demo-backend:latest
-    container_name: shop-backend
+    image: target_demo-backend:latest
+    container_name: target-backend
     depends_on:
       mysql:
         condition: service_healthy
@@ -98,8 +98,8 @@ services:
       context: ./frontend
       args:
         - VITE_API_TARGET=http://backend:8080
-    image: shop-demo-frontend:latest
-    container_name: shop-frontend
+    image: target_demo-frontend:latest
+    container_name: target-frontend
     depends_on:
       - backend
     ports:
@@ -109,7 +109,7 @@ services:
 
   influxdb:
     image: influxdb:2.7
-    container_name: shop-influxdb
+    container_name: target-influxdb
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: admin
@@ -127,7 +127,7 @@ services:
 
   grafana:
     image: grafana/grafana:10.4.2
-    container_name: shop-grafana
+    container_name: target-grafana
     depends_on:
       - influxdb
     environment:
@@ -145,8 +145,8 @@ services:
 
   jenkins:
     build: ./jenkins
-    image: shop-demo-jenkins:latest
-    container_name: shop-jenkins
+    image: target_demo-jenkins:latest
+    container_name: target-jenkins
     user: root
     environment:
       JAVA_OPTS: "-Djenkins.install.runSetupWizard=false"
@@ -159,6 +159,9 @@ services:
       # 注意：Docker Desktop 未安装特权助手时 /var/run/docker.sock 不存在，
       #      此时用用户态 socket $HOME/.docker/run/docker.sock 替代
       - ${HOME}/.docker/run/docker.sock:/var/run/docker.sock
+      # 把仓库挂进 Pipeline 工作区（job 名需与挂载目录同名：target_demo），
+      # 流水线执行 docker compose / 读取 Jenkinsfile 时可直接用工作区内的文件
+      - ./:/var/jenkins_home/workspace/target_demo:rw
     networks:
       - shop-net
 

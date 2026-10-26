@@ -1,14 +1,14 @@
 # 测试执行环境：测试代码在构建镜像时打进去，跑完用 docker cp 把报告取回。
 # 这样避免了「Jenkins 容器内路径 != 宿主 docker daemon 路径」的经典 bind mount 踩坑。
-name: shop-demo-test
+name: target_demo-test
 
 services:
   playwright:
     build:
       context: .
       dockerfile: tests/Dockerfile
-    image: shop-demo-playwright:latest
-    container_name: shop-playwright
+    image: target_demo-playwright:latest
+    container_name: target-playwright
     working_dir: /work/tests
     environment:
       BASE_URL: ${BASE_URL:-http://frontend}
@@ -27,8 +27,8 @@ services:
 
   jmeter:
     build: ./perf
-    image: shop-demo-jmeter:latest
-    container_name: shop-jmeter
+    image: target_demo-jmeter:latest
+    container_name: target-jmeter
     working_dir: /jmeter
     environment:
       TARGET_HOST: ${TARGET_HOST:-backend}
@@ -49,9 +49,9 @@ services:
 
 volumes:
   reports:
-    name: shop-demo-reports
+    name: target_demo-reports
 
 networks:
   shop-net:
     external: true
-    name: shop-demo_shop-net
+    name: target_demo_shop-net

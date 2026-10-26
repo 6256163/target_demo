@@ -12,9 +12,9 @@
     </parent>
 
     <groupId>com.demo</groupId>
-    <artifactId>shop-demo</artifactId>
+    <artifactId>target_demo</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>shop-demo</name>
+    <name>target_demo</name>
     <description>Performance / automation testing target: mini e-commerce demo</description>
 
     <properties>
@@ -93,7 +93,7 @@
     </dependencies>
 
     <build>
-        <finalName>shop-demo</finalName>
+        <finalName>target_demo</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

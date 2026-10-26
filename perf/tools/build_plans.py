@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-shop-demo JMeter 压测脚本生成器（目标版本 JMeter 5.6.3，仅使用核心元件，不依赖任何插件）。
+target_demo JMeter 压测脚本生成器（目标版本 JMeter 5.6.3，仅使用核心元件，不依赖任何插件）。
 
 为什么要生成器而不是手写 8 份 jmx：
   8 个 plan 共用同一套「登录 / 浏览 / 下单支付 / 后台」片段，手写必然出现漂移
@@ -379,7 +379,7 @@ def backend_listener_influxdb():
         # 发送器实现类：不传会在 initInfluxdbMetricsManager 里 Class.forName(null) 抛 NPE
         ("influxdbMetricsSender",
          "org.apache.jmeter.visualizers.backend.influxdb.HttpMetricsSender"),
-        ("testTitle", "shop-demo"),
+        ("testTitle", "target_demo"),
         ("influxdbUrl", "http://${influxHost}:8086/api/v2/write?org=${influxOrg}&bucket=${influxBucket}"),
         ("influxdbToken", "${influxToken}"),
         ("application", "${__P(appName,shop-demo)}"),

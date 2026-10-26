@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# shop-demo 压力测试（破坏性 / 极限探测）执行入口
+# target_demo 压力测试（破坏性 / 极限探测）执行入口
 #
 # 用法：
 #   ./perf/run-stress.sh --scenario layer --layer 1 --threads 50 --duration 300   # 分层剥离瓶颈
@@ -28,8 +28,8 @@ BASE_THREADS=50
 SPIKE_THREADS=800
 DURATION=600
 VERSION="$(date +%Y%m%d-%H%M%S)-stress"
-IMAGE="shop-demo-jmeter:latest"
-NETWORK="shop-demo_shop-net"
+IMAGE="target_demo-jmeter:latest"
+NETWORK="target_demo_shop-net"
 TARGET_HOST="backend"
 TARGET_PORT="8080"
 INFLUX_HOST="influxdb"
@@ -113,10 +113,10 @@ if [[ $CHECK -eq 1 ]]; then
   # 延迟关单 TTL 是 10 分钟，这里先等队列消化再校验
   echo "等待 30s 让 MQ 消费完（延迟关单 TTL 更长，孤儿订单项请 15 分钟后再跑一次）..."
   sleep 30
-  docker exec -i shop-mysql mysql -ushop -pshop123456 shop_demo \
+  docker exec -i target-mysql mysql -ushop -pshop123456 shop_demo \
       --default-character-set=utf8mb4 < "$ROOT/perf/data/consistency-check.sql" \
       2>&1 | grep -v "Using a password" | tee "$REPORT_DIR/consistency-check.txt" | head -60
   echo ""
   echo "完整结果：$REPORT_DIR/consistency-check.txt"
-  echo "MQ 残留自查：docker exec shop-rabbitmq rabbitmqctl list_queues name messages"
+  echo "MQ 残留自查：docker exec target-rabbitmq rabbitmqctl list_queues name messages"
 fi

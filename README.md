@@ -19,7 +19,7 @@
 ## 2. 目录结构
 
 ```
-shop-demo/
+target_demo/
 ├── backend/              Spring Boot 服务（Dockerfile + 源码）
 ├── frontend/             Vue3 前端（Dockerfile + nginx.conf）
 ├── db/init/              01-schema.sql / 02-seed.sql（1000 用户 + 200 商品 + 管理员）
@@ -37,7 +37,7 @@ shop-demo/
 ## 3. 快速开始
 
 ```bash
-cd shop-demo
+cd target_demo
 
 # 一键起环境（首次会构建镜像，约 3~5 分钟）
 docker compose up -d --build
@@ -62,7 +62,7 @@ until curl -fsS http://localhost:8080/actuator/health; do sleep 3; done
 | RabbitMQ 管理台 | http://localhost:15672 | `guest / guest` |
 | Grafana | http://localhost:3000 | `admin / admin123456` |
 | InfluxDB | http://localhost:8086 | `admin / admin123456` |
-| Jenkins | http://localhost:8082 | 首次启动查看日志取初始密码 |
+| Jenkins | http://localhost:8082 | 无初始密码（已跳过安装向导，本地未开鉴权）|
 
 内置账号：
 
@@ -148,16 +148,27 @@ TOMCAT_MAX_THREADS=400 DB_POOL_MAX=50 docker compose up -d backend
 
 ## 8. Jenkins 流水线
 
-1. 启动 Jenkins：`docker compose up -d --build jenkins`（首次构建镜像要装 Docker CLI 和插件，约 20 分钟），访问 http://localhost:8082 。
-2. 首次进入**没有初始密码**：镜像已通过 `-Djenkins.install.runSetupWizard=false` 跳过安装向导，
-   插件（`workflow-aggregator` / `git` / `blueocean` / `allure-jenkins-plugin` 等）在构建时预装。
-   这是本地测试环境，默认不开启鉴权；需要的话去「系统管理 → 安全」自行配置。
-3. 新建 **Pipeline** 任务，SCM 指向本仓库，脚本路径 `Jenkinsfile`。
-3. 触发方式推荐：Git webhook 或 `Poll SCM`，对目标分支的 merge / push 触发。
-4. 流水线阶段：
+1. 启动 Jenkins：`docker compose up -d --build jenkins`，访问 http://localhost:8082 。
+   - 镜像已预装 BlueOcean 等插件（首次构建镜像约 20+ 分钟，主要在下载插件）。
+   - **已修复**：Debian trixie 的 `docker.io` 包不含可用的 `docker` 客户端二进制，故 `jenkins/Dockerfile`
+     改用官方静态二进制安装 `docker` CLI + `compose` 插件；运行中的容器也已安装同样版本，确保流水线里的
+     `docker` / `docker compose` 可用。
+2. 首次进入**没有初始密码**：镜像通过 `-Djenkins.install.runSetupWizard=false` 跳过安装向导，默认不开启鉴权（本地测试环境）。
+3. **Pipeline 任务已创建**：任务名 `target_demo`，类型为 Pipeline（内联脚本，内容即本仓库 `Jenkinsfile`）。
+   - 仓库已通过 compose 卷挂载挂进 Jenkins 工作区 `/var/jenkins_home/workspace/target_demo`，
+     流水线执行 `docker compose`、读取 `Jenkinsfile` 时直接使用工作区文件。
+   - 仓库已 `git init` 并提交（默认分支 `main`），满足 `Jenkinsfile` 里 `git rev-parse` 取版本号的要求。
+4. 触发方式：手动「立即构建」，或配置 Git webhook / `Poll SCM` 在 merge / push 时触发；
+   参数 `RUN_PERF_TEST` 可勾选跑性能测试，`BASE_URL` 指定被测服务地址。
+5. 流水线阶段：
    `准备（计算版本号）→ 构建镜像 → 部署环境 → 冒烟 → API 自动化 → UI 自动化 → 生成 Allure → （可选）性能测试 → 归档报告`
-5. 报告归档位置：`reports/<分支>-<commit>-b<构建号>/`，含 `playwright-report/`、`allure-report/`、`junit.xml`；
+6. 报告归档位置：`reports/<分支>-<commit>-b<构建号>/`，含 `playwright-report/`、`allure-report/`、`junit.xml`；
    失败用例会把构建标记为 `UNSTABLE` 并保留截图/视频/trace。
+
+> **容器内运行 Jenkins 的注意事项**：流水线默认 `BASE_URL=http://localhost` 访问后端/前端，这只对「Jenkins 跑在宿主机」成立。
+> 当前 Jenkins 本身是 Docker 容器，在它内部访问 `localhost:8080` 指的是 Jenkins 自己。请在「立即构建」时把参数 `BASE_URL`
+> 填为 `http://host.docker.internal`（Docker Desktop 已内置该主机名解析），冒烟检查才能正确打到宿主机上的 backend/frontend。
+> 也可直接把 `host.docker.internal` 作为 `BASE_URL` 默认值提交进 `Jenkinsfile`。
 
 > 说明：测试容器的代码在**构建镜像时**打进镜像，报告通过命名卷 + `docker cp` 取回，
 > 规避「Jenkins 容器内路径 ≠ 宿主 docker daemon 路径」的 bind mount 问题。
@@ -173,7 +184,7 @@ TOMCAT_MAX_THREADS=400 DB_POOL_MAX=50 docker compose up -d backend
 
 ```
 perf/
-├── Dockerfile                 JMeter 5.6.3 运行环境（含插件管理，镜像 shop-demo-jmeter）
+├── Dockerfile                 JMeter 5.6.3 运行环境（含插件管理，镜像 target_demo-jmeter）
 ├── tools/build_plans.py       JMX 生成器（改这里重新生成，不要手改 .jmx）
 ├── data/generate_csv.py       参数池生成器
 │   ├── users.csv / products.csv             性能池（user00001~user01000 / 200 商品）
@@ -200,7 +211,7 @@ perf/
 ### 9.3 跑性能测试
 
 ```bash
-cd shop-demo
+cd target_demo
 
 # 1) 先冒烟：1 线程 30s，确认脚本能跑通、变量解析正常、断言命中
 ./perf/run-perf.sh --scenario order --smoke
@@ -267,7 +278,15 @@ python3 perf/tools/build_plans.py          # 重建 perf/plans/*.jmx
   消息投递已改为事务提交后触发，若还有堆积，去 RabbitMQ 管理台看 `q.payment.process` 队列深度与消费者数。
 - **RabbitMQ 队列已存在导致 TTL 不生效**：改了 `ORDER_PAY_TIMEOUT_MS` 后需 `docker compose down -v` 重建。
 - **UI 用例报错 `element not found`**：前端构建产物未更新，执行 `docker compose build frontend && docker compose up -d frontend`。
-- **压测后数据脏了**：`docker compose down -v && docker compose up -d --build` 重放初始化脚本。
+- **压测后数据脏了**：轻量做法是只清业务表、恢复库存（**不重启**监控栈与 Jenkins）：
+  ```sql
+  SET FOREIGN_KEY_CHECKS=0;
+  DELETE FROM order_items; DELETE FROM orders; DELETE FROM payments; DELETE FROM cart_items;
+  SET FOREIGN_KEY_CHECKS=1;
+  UPDATE products SET stock = 100000 WHERE id BETWEEN 1 AND 10;   -- 热点商品
+  UPDATE products SET stock = 10000 WHERE id BETWEEN 11 AND 200;  -- 普通商品
+  ```
+  若想连同监控数据一起彻底重置，再 `docker compose down -v && docker compose up -d --build`。
 - **订单时间 / 超时关单差 8 小时**：后端 JVM、Hibernate、MySQL 三处时区必须一致。
   已在 `docker-compose.yml` 给 backend 设 `TZ=Asia/Shanghai` + `-Duser.timezone=Asia/Shanghai`，
   `application.yml` 里是 `hibernate.jdbc.time_zone: ${DB_TZ:Asia/Shanghai}`。
