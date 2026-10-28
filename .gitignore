@@ -11,6 +11,9 @@ tests/test-results/
 tests/allure-results/
 tests/allure-report/
 
+# 测试依赖（Playwright 安装，体积大，不进仓库）
+tests/node_modules/
+
 # 本地环境
 .env
 *.local

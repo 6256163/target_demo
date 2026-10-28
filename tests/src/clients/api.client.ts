@@ -6,13 +6,32 @@ export interface ApiResult<T = any> {
   message: string
   data: T
   raw: any
+  /** 响应头（键为小写），用于 CORS/Content-Type 断言 */
+  headers: Record<string, string>
+}
+
+export interface RawOptions {
+  data?: any
+  headers?: Record<string, string>
+  /** 覆盖默认 Authorization；false 表示不带鉴权头 */
+  token?: string | false
 }
 
 const BASE_URL = process.env.API_BASE_URL || 'http://localhost:8080'
 
+function qs(params: Record<string, any> = {}): string {
+  const search = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== '') search.set(k, String(v))
+  }
+  const s = search.toString()
+  return s ? `?${s}` : ''
+}
+
 /** 轻量 API 客户端：所有接口统一返回 {status, code, data}，断言时优先用 code（业务错误码） */
 export class ShopApiClient {
   private token = ''
+  private refreshToken = ''
 
   constructor(private ctx: APIRequestContext) {
   }
@@ -38,13 +57,42 @@ export class ShopApiClient {
     return this.token ? { Authorization: `Bearer ${this.token}` } : {}
   }
 
+  getAccessToken(): string {
+    return this.token
+  }
+
+  getRefreshToken(): string {
+    return this.refreshToken
+  }
+
+  useToken(token: string): void {
+    this.token = token
+  }
+
   async dispose() {
     await this.ctx.dispose()
   }
 
-  private async call<T>(method: string, url: string, options: any = {}): Promise<ApiResult<T>> {
+  /** 原始请求：用于构造匿名、指定 token、非法 body 等场景 */
+  async raw<T = any>(method: string, url: string, options: RawOptions = {}): Promise<ApiResult<T>> {
+    const headers: Record<string, string> = { ...(options.headers || {}) }
+    if (options.token === false) {
+      // 显式匿名
+    } else if (typeof options.token === 'string') {
+      headers.Authorization = `Bearer ${options.token}`
+    } else {
+      Object.assign(headers, this.authHeader())
+    }
+    return this.send<T>(method, url, { ...options, headers })
+  }
+
+  private async call<T = any>(method: string, url: string, options: any = {}): Promise<ApiResult<T>> {
     const headers = { ...(options.headers || {}), ...this.authHeader() }
-    const resp = await this.ctx.fetch(url, { method, ...options, headers })
+    return this.send<T>(method, url, { ...options, headers })
+  }
+
+  private async send<T = any>(method: string, url: string, options: any): Promise<ApiResult<T>> {
+    const resp = await this.ctx.fetch(url, { method, ...options })
     const text = await resp.text()
     let raw: any = null
     try {
@@ -57,7 +105,8 @@ export class ShopApiClient {
       code: raw?.code ?? -1,
       message: raw?.message ?? '',
       data: raw?.data,
-      raw
+      raw,
+      headers: resp.headers()
     }
   }
 
@@ -66,12 +115,13 @@ export class ShopApiClient {
     const res = await this.call('POST', '/api/auth/login', { data: { username, password } })
     if (res.code === 0 && res.data?.accessToken) {
       this.token = res.data.accessToken
+      this.refreshToken = res.data.refreshToken || ''
     }
     return res
   }
 
-  async register(username: string, password: string, email?: string) {
-    return this.call('POST', '/api/auth/register', { data: { username, password, email } })
+  async register(username: string, password: string, email?: string, nickname?: string) {
+    return this.call('POST', '/api/auth/register', { data: { username, password, email, nickname } })
   }
 
   async me() {
@@ -79,16 +129,25 @@ export class ShopApiClient {
   }
 
   async refresh(refreshToken: string) {
-    return this.call('POST', '/api/auth/refresh', { data: { refreshToken } })
+    const res = await this.call('POST', '/api/auth/refresh', { data: { refreshToken } })
+    if (res.code === 0 && res.data?.accessToken) {
+      this.token = res.data.accessToken
+      this.refreshToken = res.data.refreshToken || ''
+    }
+    return res
   }
 
   // ---------------- catalog ----------------
   async listProducts(params: Record<string, any> = {}) {
-    return this.call('GET', `/api/products?${new URLSearchParams(params).toString()}`)
+    return this.call('GET', `/api/products${qs(params)}`)
   }
 
   async productDetail(id: number) {
     return this.call('GET', `/api/products/${id}`)
+  }
+
+  async hotProducts(limit?: number) {
+    return this.call('GET', `/api/products/hot${qs({ limit })}`)
   }
 
   async categories() {
@@ -104,8 +163,16 @@ export class ShopApiClient {
     return this.call('POST', '/api/cart/items', { data: { productId, quantity } })
   }
 
+  async cartAddRaw(payload: any) {
+    return this.call('POST', '/api/cart/items', { data: payload })
+  }
+
   async cartUpdate(productId: number, quantity: number) {
     return this.call('PUT', `/api/cart/items/${productId}`, { data: { quantity } })
+  }
+
+  async cartUpdateRaw(productId: number, payload: any) {
+    return this.call('PUT', `/api/cart/items/${productId}`, { data: payload })
   }
 
   async cartRemove(productId: number) {
@@ -126,7 +193,7 @@ export class ShopApiClient {
   }
 
   async listOrders(params: Record<string, any> = {}) {
-    return this.call('GET', `/api/orders?${new URLSearchParams(params).toString()}`)
+    return this.call('GET', `/api/orders${qs(params)}`)
   }
 
   async cancelOrder(orderNo: string) {
@@ -138,7 +205,16 @@ export class ShopApiClient {
   }
 
   // ---------------- payment ----------------
-  async pay(payload: { orderNo: string, payType?: string, outcome?: string }) {
+  async pay(payload: {
+    orderNo: string
+    payType?: string
+    outcome?: string
+    idempotencyKey?: string
+  }) {
+    return this.call('POST', '/api/payments', { data: payload })
+  }
+
+  async payRaw(payload: any) {
     return this.call('POST', '/api/payments', { data: payload })
   }
 
@@ -146,25 +222,23 @@ export class ShopApiClient {
     return this.call('GET', `/api/payments/${tradeNo}`)
   }
 
+  async paymentList(orderNo: string) {
+    return this.call('GET', `/api/payments${qs({ orderNo })}`)
+  }
+
   async paymentCallback(tradeNo: string, status: string, callbackId?: string) {
-    const q = new URLSearchParams({ status })
-    if (callbackId) q.set('callbackId', callbackId)
-    return this.call('POST', `/api/payments/${tradeNo}/callback?${q.toString()}`)
+    return this.call('POST', `/api/payments/${tradeNo}/callback${qs({ status, callbackId })}`)
   }
 
   async refund(tradeNo: string) {
     return this.call('POST', `/api/payments/${tradeNo}/refund`)
   }
 
-  async paymentConfig() {
-    return this.call('GET', '/api/admin/payment/config')
-  }
-
-  async updatePaymentConfig(payload: Record<string, any>) {
-    return this.call('PUT', '/api/admin/payment/config', { data: payload })
-  }
-
   // ---------------- admin ----------------
+  async adminProducts(params: Record<string, any> = {}) {
+    return this.call('GET', `/api/admin/products${qs(params)}`)
+  }
+
   async adminCreateProduct(payload: Record<string, any>) {
     return this.call('POST', '/api/admin/products', { data: payload })
   }
@@ -181,8 +255,12 @@ export class ShopApiClient {
     return this.call('PATCH', `/api/admin/products/${id}/stock`, { data: { delta } })
   }
 
+  async adminClearCache() {
+    return this.call('DELETE', '/api/admin/products/cache')
+  }
+
   async adminOrders(params: Record<string, any> = {}) {
-    return this.call('GET', `/api/admin/orders?${new URLSearchParams(params).toString()}`)
+    return this.call('GET', `/api/admin/orders${qs(params)}`)
   }
 
   async adminShip(orderNo: string) {
@@ -195,6 +273,14 @@ export class ShopApiClient {
 
   async adminStats() {
     return this.call('GET', '/api/admin/orders/stats')
+  }
+
+  async paymentConfig() {
+    return this.call('GET', '/api/admin/payment/config')
+  }
+
+  async updatePaymentConfig(payload: Record<string, any>) {
+    return this.call('PUT', '/api/admin/payment/config', { data: payload })
   }
 
   // ---------------- 轮询辅助（MQ 异步链路） ----------------
